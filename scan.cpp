@@ -7,6 +7,8 @@
 #include <regex>
 #include <sstream>
 #include <bitset>
+#include <algorithm>
+#include <utility>
 
 #ifdef _WIN32
 	#include <winsock2.h>
@@ -18,9 +20,15 @@
 	#include <sys/socket.h>
 	#include <netinet/in.h>
 #endif
-
 std::mutex outputMutex;
+//////////////////////////////////////STRUCTS////////////////////////////////
+struct info {
+	std::string ip;
+	int port;
 
+	info(std::string ip, int p) : ip(ip), port(p) {}
+};
+//////////////////////////////////////STRUCTS////////////////////////////////
 //////////////////////////////////////FUNCTIONS////////////////////////////////
 bool isIP(const std::string& ip) {
 	std::stringstream ss(ip);
@@ -114,7 +122,7 @@ std::vector<int> options(int argc, char* argv[]) {
 		std::string arg = argv[i];
 		if (arg == "-A") {
 			for (int i = 0; i <= 65535; i++) {
-				ports.push_back(i);
+				ports.emplace_back(i);
 			};
 		}
 		else if (arg == "-N") {
@@ -187,16 +195,33 @@ bool scanPort(const std::string& ip, int port) {
 };
 
 void scanAndPrint(const std::string& ip, int port) {
+	std::vector<std::pair<std::string, int>> goodPorts;
+	std::vector<std::pair<std::string, int>> badPorts;
+
 	if (scanPort(ip, port)) {
 		std::lock_guard<std::mutex> lock(outputMutex);
 		std::cout << "[+] Port " << port << " is OPEN" << std::endl;
+		goodPorts.emplace_back(info(ip, port));
 	}
 	else {
 		std::lock_guard<std::mutex> lock(outputMutex);
 		std::cout << "[-] Port " << port << " is closed" << std::endl;
+		badPorts.emplace_back(info(ip, port));
 	}
+
+	print(goodPorts, badPorts);
 };
 
+void print(const std::vector<std::string, int>& good, const std::vector<std::string, int>& bad) {
+	std::sort(good.begin(), good.end(), cmp);
+	for (int i = 0; i < good.size(); i++) {
+		std::cout << "[+] Port " << good[i].second << " is OPEN" << std::endl;
+	}
+}
+
+bool cmp(const info& a, const info& b) {
+	return a.ip < b.ip || (a.ip == b.ip && a.port < b.port);
+}
 //////////////////////////////////////FUNCTIONS////////////////////////////////
 //////////////////////////////////////MAIN/////////////////////////////////////
 int main(int argc, char* argv[]) {
@@ -228,6 +253,10 @@ int main(int argc, char* argv[]) {
 #ifdef _WIN32
 	WSACleanup();
 #endif
+
+	return 0;
+}
+//////////////////////////////////////MAIN/////////////////////////////////////
 
 	return 0;
 }
